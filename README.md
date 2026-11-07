@@ -1,8 +1,8 @@
 # AriaPilot fnOS
 
-AriaPilot 的飞牛 fnOS 版本。应用自带独立的 aria2 引擎，以 FPK 安装，可在飞牛桌面中管理下载任务、查看实时进度、修改下载目录和常用配置。
+AriaPilot 是运行在飞牛 fnOS 上的下载管理器，自带 aria2 引擎，以 FPK 形式安装。它支持 HTTP、HTTPS、FTP、磁力链接和 `.torrent` 种子，可以在飞牛桌面或浏览器中管理下载任务、查看实时进度、暂停继续、删除任务，并配置下载目录、并发数和限速。
 
-这个仓库从主仓库 [mh567/AriaPilot](https://github.com/mh567/AriaPilot) 的 `fnos/` 子树拆分而来。macOS 版仍在主仓库维护，本仓库只负责 fnOS 版本。
+本仓库维护 fnOS 版本，代码从主仓库 [mh567/AriaPilot](https://github.com/mh567/AriaPilot) 的 `fnos/` 子树拆分而来。macOS 版仍在主仓库维护。
 
 ## 功能
 
