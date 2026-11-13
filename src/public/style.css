@@ -273,6 +273,10 @@ code {
   margin-bottom: 22px;
 }
 
+body.is-settings .topbar {
+  display: none;
+}
+
 .stats {
   display: flex;
   flex-wrap: wrap;
@@ -331,6 +335,15 @@ code {
 
 .button:active {
   transform: translateY(1px);
+}
+
+.button:focus-visible,
+.nav-item:focus-visible,
+.root-chip:focus-visible,
+.segment:focus-visible,
+.switch-row input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .button:disabled {
@@ -616,6 +629,7 @@ code {
   flex-direction: column;
   gap: 16px;
   max-width: 880px;
+  padding-bottom: 84px;
 }
 
 .card {
@@ -741,6 +755,12 @@ code {
   white-space: nowrap;
 }
 
+.root-chip.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 .segmented {
   display: inline-flex;
   padding: 3px;
@@ -768,6 +788,8 @@ code {
 
 .inline-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 4px;
 }
@@ -808,10 +830,44 @@ code {
 }
 
 .settings-actions {
+  position: fixed;
+  right: 34px;
+  bottom: 22px;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-bottom: 12px;
+  max-width: min(520px, calc(100vw - 68px));
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16);
+}
+
+.settings-status {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-status:empty {
+  display: none;
+}
+
+.settings-status.is-warning {
+  color: var(--warning);
+}
+
+.settings-status.is-success {
+  color: var(--success);
+}
+
+.settings-status.is-error {
+  color: var(--danger);
 }
 
 .modal {
@@ -976,6 +1032,10 @@ code {
   max-width: min(380px, calc(100vw - 40px));
 }
 
+body.is-settings .toasts {
+  bottom: 96px;
+}
+
 .toast {
   padding: 11px 14px;
   border: 1px solid var(--border);
@@ -1016,6 +1076,17 @@ code {
 
   .main {
     padding: 18px 16px 96px;
+  }
+
+  .settings {
+    padding-bottom: 168px;
+  }
+
+  .settings-actions {
+    left: 12px;
+    right: 12px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    max-width: none;
   }
 
   .topbar {
@@ -1114,6 +1185,10 @@ code {
     left: 12px;
     bottom: 82px;
     max-width: none;
+  }
+
+  body.is-settings .toasts {
+    bottom: calc(148px + env(safe-area-inset-bottom));
   }
 }
 

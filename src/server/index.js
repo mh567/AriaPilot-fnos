@@ -23,7 +23,7 @@ const {
   validateSettings,
 } = require('./settings');
 
-const APP_VERSION = '1.0.8';
+const APP_VERSION = '1.0.9';
 
 const appDest =
   process.env.AP_DEST ||
@@ -239,19 +239,15 @@ async function saveSettings(patch) {
 
   let external = null;
   if (next.mode === 'external') {
-    if (patch.applyToServer === false) {
-      external = { connected: false, applied: false, skipped: true };
-    } else {
-      try {
-        external = await applyExternalSettings(next);
-      } catch (error) {
-        external = {
-          connected: false,
-          applied: false,
-          error: error.message,
-        };
-        warning = `设置已保存，但连接或应用到 aria2 失败：${error.message}`;
-      }
+    try {
+      external = await applyExternalSettings(next);
+    } catch (error) {
+      external = {
+        connected: false,
+        applied: false,
+        error: error.message,
+      };
+      warning = `设置已保存，但连接或应用到 aria2 失败：${error.message}`;
     }
   }
 

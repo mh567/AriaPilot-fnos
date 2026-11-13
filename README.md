@@ -38,8 +38,8 @@ bash scripts/build_fpk.sh --arch all
 产物：
 
 ```text
-dist/ariapilot_1.0.8_x86.fpk
-dist/ariapilot_1.0.8_arm.fpk
+dist/ariapilot_1.0.9_x86.fpk
+dist/ariapilot_1.0.9_arm.fpk
 ```
 
 构建机需要 `node`、`curl`、`tar`、`md5` 或 `md5sum`，以及 `rsvg-convert`、ImageMagick 或 macOS `qlmanage` 之一用于生成图标。`fnpack` 会在缺失时自动下载到 `.tools/`。
@@ -67,7 +67,7 @@ docs/FNOS.md    安装、配置和排障
 
 ## 版本
 
-本仓库使用独立的 `vX.Y.Z` 标签，与 macOS 版版本号无关。当前版本 `v1.0.8`。
+本仓库使用独立的 `vX.Y.Z` 标签，与 macOS 版版本号无关。当前版本 `v1.0.9`。
 
 ## 安全
 

@@ -53,8 +53,8 @@ bash scripts/build_fpk.sh --arch arm
 产物：
 
 ```text
-dist/ariapilot_1.0.8_x86.fpk
-dist/ariapilot_1.0.8_arm.fpk
+dist/ariapilot_1.0.9_x86.fpk
+dist/ariapilot_1.0.9_arm.fpk
 ```
 
 如果构建机无法联网，可以提前把 aria2 二进制放到 `vendor/aria2/linux-amd64/` 和 `vendor/aria2/linux-arm64/`，并设置 `FNOS_SKIP_FNPACK_DOWNLOAD=1` 使用内置打包器。

@@ -166,8 +166,8 @@
               <span class="muted">默认使用应用自带的 aria2</span>
             </div>
             <div class="segmented" role="radiogroup" aria-label="引擎模式">
-              <button type="button" class="segment is-active" data-mode="builtin">内置引擎</button>
-              <button type="button" class="segment" data-mode="external">连接已有 aria2</button>
+              <button type="button" role="radio" aria-checked="true" class="segment is-active" data-mode="builtin">内置引擎</button>
+              <button type="button" role="radio" aria-checked="false" class="segment" data-mode="external">连接已有 aria2</button>
             </div>
 
             <div id="builtinPanel">
@@ -199,8 +199,8 @@
                 <p class="hint">连接到已有 aria2 后会自动读取服务端目录和线程配置。外部模式下不支持删除远端文件和浏览远端目录。</p>
               </div>
               <div class="inline-actions">
-                <button class="button ghost" type="button" id="readExternalBtn">读取服务端配置</button>
-                <span class="muted" id="externalStatus">尚未连接</span>
+                <button class="button ghost" type="button" id="readExternalBtn" disabled>读取服务端配置</button>
+                <span class="muted" id="externalStatus" role="status" aria-live="polite">尚未连接</span>
               </div>
             </div>
           </div>
@@ -219,8 +219,8 @@
           </div>
 
           <div class="settings-actions">
-            <button class="button primary" type="submit" id="saveSettingsBtn">保存设置</button>
-            <span class="muted" id="settingsStatus"></span>
+            <button class="button primary" type="submit" id="saveSettingsBtn" disabled>保存设置</button>
+            <span class="settings-status" id="settingsStatus" role="status" aria-live="polite"></span>
           </div>
         </form>
       </section>

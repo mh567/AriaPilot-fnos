@@ -1,5 +1,5 @@
 appname               = ariapilot
-version               = 1.0.8
+version               = 1.0.9
 display_name          = AriaPilot
 desc                  = 基于 aria2 的下载管理器，支持 HTTP、BT 与磁力链接，可管理任务、查看实时进度并配置下载目录。
 platform              = x86
@@ -14,4 +14,4 @@ desktop_applaunchname = ariapilot.main
 service_port          = 7788
 checkport             = true
 install_dep_apps      = nodejs_v22
-changelog             = 1.0.8：外部 aria2 模式可读取并写入服务端目录、并发、连接数、分片和限速，设置页显示连接状态。
+changelog             = 1.0.9：设置页精简顶栏，保存按钮固定在右下角，增加未保存提示和离开确认，改进外部 aria2 配置读取。

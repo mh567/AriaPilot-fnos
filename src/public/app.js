@@ -46,7 +46,9 @@ const state = {
   browse: { target: 'add', path: '', parent: null },
   pendingDelete: null,
   torrent: null,
-  externalLoadedFor: '',
+  settingsBaseline: '',
+  settingsSaving: false,
+  builtinDir: '',
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -157,8 +159,87 @@ function setButtonBusy(button, busy) {
   button.disabled = busy;
 }
 
+function setSettingsStatus(text, tone = '') {
+  const element = $('#settingsStatus');
+  if (!element) return;
+  element.textContent = text;
+  element.dataset.tone = tone;
+  element.className = `settings-status${tone ? ` is-${tone}` : ''}`;
+}
+
+function settingsFormSnapshot() {
+  return JSON.stringify({
+    mode: state.engineMode,
+    dir: $('#settingDir').value.trim(),
+    maxConcurrent: $('#settingConcurrent').value,
+    connectionsPerServer: $('#settingConnections').value,
+    split: $('#settingSplit').value,
+    downloadLimit: $('#settingDownloadLimit').value.trim(),
+    uploadLimit: $('#settingUploadLimit').value.trim(),
+    rpcPort: $('#settingPort').value,
+    externalRpcUrl: $('#settingExternalUrl').value.trim(),
+    externalRpcSecret: $('#settingExternalSecret').value,
+    deleteFilesByDefault: $('#settingDeleteFiles').checked,
+  });
+}
+
+function isSettingsDirty() {
+  return (
+    state.settingsBaseline !== '' &&
+    settingsFormSnapshot() !== state.settingsBaseline
+  );
+}
+
+function refreshSettingsDirty({ preserveStatus = false } = {}) {
+  const dirty = isSettingsDirty();
+  const button = $('#saveSettingsBtn');
+  if (button) {
+    button.disabled = state.settingsSaving || !dirty;
+    button.title = dirty ? '' : '没有未保存的修改';
+  }
+
+  const readButton = $('#readExternalBtn');
+  if (readButton) {
+    readButton.disabled =
+      state.engineMode !== 'external' ||
+      !$('#settingExternalUrl').value.trim();
+  }
+
+  if (state.settingsSaving || preserveStatus) return;
+  const status = $('#settingsStatus');
+  if (dirty) {
+    setSettingsStatus('有未保存的修改', 'warning');
+  } else if (status && status.dataset.tone === 'warning') {
+    setSettingsStatus('');
+  }
+}
+
+function markSettingsClean() {
+  state.settingsBaseline = settingsFormSnapshot();
+  refreshSettingsDirty();
+}
+
+function syncRootSelection() {
+  const current = $('#settingDir').value.trim();
+  $$('#rootsList [data-root]').forEach((chip) => {
+    const selected = chip.dataset.root === current;
+    chip.classList.toggle('is-selected', selected);
+    chip.setAttribute('aria-pressed', String(selected));
+  });
+}
+
 function switchView(view) {
+  if (
+    state.view === 'settings' &&
+    view !== 'settings' &&
+    isSettingsDirty() &&
+    !window.confirm('设置尚未保存，确定离开吗？')
+  ) {
+    return;
+  }
+
   state.view = view;
+  document.body.classList.toggle('is-settings', view === 'settings');
   $$('[data-view]').forEach((button) => {
     button.classList.toggle('is-active', button.dataset.view === view);
   });
@@ -440,11 +521,14 @@ async function loadStopped(loaded) {
   render();
 }
 
-async function loadSettings() {
+async function loadSettings({ markClean = true } = {}) {
   const data = await api('/api/settings');
   state.settings = data.settings;
   state.roots = data.roots || [];
   state.engineMode = data.settings.mode || 'builtin';
+  if (state.engineMode === 'builtin') {
+    state.builtinDir = data.settings.downloadDir || '';
+  }
 
   $('#settingDir').value = data.settings.downloadDir || '';
   $('#settingConcurrent').value = data.settings.maxConcurrent;
@@ -466,6 +550,8 @@ async function loadSettings() {
   if (state.engineMode === 'external') {
     await probeExternal({ silent: true });
   }
+  syncRootSelection();
+  if (markClean) markSettingsClean();
 }
 
 function renderRoots() {
@@ -477,15 +563,18 @@ function renderRoots() {
   list.innerHTML = state.roots
     .map(
       (root) =>
-        `<button type="button" class="root-chip" data-root="${escapeHtml(root)}" title="${escapeHtml(root)}">${escapeHtml(root)}</button>`,
+        `<button type="button" class="root-chip" data-root="${escapeHtml(root)}" title="${escapeHtml(root)}" aria-pressed="false">${escapeHtml(root)}</button>`,
     )
     .join('');
+  syncRootSelection();
 }
 
 function setMode(mode) {
   state.engineMode = mode;
   $$('.segment').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.mode === mode);
+    const active = button.dataset.mode === mode;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-checked', String(active));
   });
 
   const builtin = mode === 'builtin';
@@ -509,13 +598,25 @@ function setMode(mode) {
 
 function switchMode(mode) {
   if (state.engineMode === mode) return;
-  state.externalLoadedFor = '';
+  if (
+    isSettingsDirty() &&
+    !window.confirm('切换引擎模式会丢失当前未保存的修改，继续吗？')
+  ) {
+    return;
+  }
+  if (state.engineMode === 'builtin') {
+    state.builtinDir = $('#settingDir').value.trim();
+  }
   setMode(mode);
   if (mode === 'external') {
+    setExternalStatus('尚未连接');
     probeExternal({ silent: true });
   } else {
+    if (state.builtinDir) $('#settingDir').value = state.builtinDir;
     setExternalStatus('尚未连接');
+    syncRootSelection();
   }
+  refreshSettingsDirty();
 }
 
 function setExternalStatus(text, tone = '') {
@@ -539,19 +640,18 @@ function applyExternalOptions(options) {
   $('#settingDownloadLimit').value = options.downloadLimit;
   $('#settingUploadLimit').value = options.uploadLimit;
   if (state.settings) Object.assign(state.settings, options);
+  syncRootSelection();
 }
 
 async function probeExternal({ silent = true } = {}) {
   const url = $('#settingExternalUrl').value.trim();
   if (!url) {
-    state.externalLoadedFor = '';
     setExternalStatus('请先填写 RPC 地址');
     return null;
   }
 
   setExternalStatus('正在读取服务端配置…');
   const saveButton = $('#saveSettingsBtn');
-  const saveWasDisabled = Boolean(saveButton && saveButton.disabled);
   if (saveButton) saveButton.disabled = true;
   try {
     const payload = { externalRpcUrl: url };
@@ -562,59 +662,49 @@ async function probeExternal({ silent = true } = {}) {
       body: JSON.stringify(payload),
     });
     applyExternalOptions(data.options);
-    state.externalLoadedFor = url;
     setExternalStatus(
       `已连接${data.version ? ` aria2 ${data.version}` : ''}，已读取服务端配置`,
       'ok',
     );
     return data;
   } catch (error) {
-    state.externalLoadedFor = '';
     setExternalStatus(`连接失败：${error.message}`, 'error');
     if (!silent) toast(error.message, 'error');
     return null;
   } finally {
-    if (saveButton) saveButton.disabled = saveWasDisabled;
+    refreshSettingsDirty({ preserveStatus: true });
   }
 }
 
 async function saveSettings(event) {
   event.preventDefault();
   const button = $('#saveSettingsBtn');
-  setButtonBusy(button, true);
-  $('#settingsStatus').textContent = '保存中…';
+  state.settingsSaving = true;
+  setSettingsStatus('保存中…');
+  refreshSettingsDirty({ preserveStatus: true });
 
   try {
-    let skipExternalApply = false;
     if (state.engineMode === 'external') {
       const url = $('#settingExternalUrl').value.trim();
       if (!url) throw new Error('请填写 RPC 地址');
-      if (state.externalLoadedFor !== url) {
-        const probed = await probeExternal({ silent: true });
-        skipExternalApply = !probed;
-      }
     }
 
     const payload = {
       mode: state.engineMode,
+      downloadDir: $('#settingDir').value.trim(),
+      maxConcurrent: Number($('#settingConcurrent').value),
+      connectionsPerServer: Number($('#settingConnections').value),
+      split: Number($('#settingSplit').value),
+      downloadLimit: $('#settingDownloadLimit').value.trim(),
+      uploadLimit: $('#settingUploadLimit').value.trim(),
       rpcPort: Number($('#settingPort').value),
       deleteFilesByDefault: $('#settingDeleteFiles').checked,
     };
-
-    if (!skipExternalApply) {
-      payload.downloadDir = $('#settingDir').value.trim();
-      payload.maxConcurrent = Number($('#settingConcurrent').value);
-      payload.connectionsPerServer = Number($('#settingConnections').value);
-      payload.split = Number($('#settingSplit').value);
-      payload.downloadLimit = $('#settingDownloadLimit').value.trim();
-      payload.uploadLimit = $('#settingUploadLimit').value.trim();
-    }
 
     if (state.engineMode === 'external') {
       payload.externalRpcUrl = $('#settingExternalUrl').value.trim();
       const secret = $('#settingExternalSecret').value;
       if (secret) payload.externalRpcSecret = secret;
-      if (skipExternalApply) payload.applyToServer = false;
     }
 
     const result = await api('/api/settings', {
@@ -628,32 +718,37 @@ async function saveSettings(event) {
       renderEngine(result.engine);
     }
     if (result.warning) toast(result.warning, 'error');
-    if (result.external && result.external.skipped) {
-      toast('连接信息已保存，未读取到服务端配置，参数未写入服务端', 'error');
-      $('#settingsStatus').textContent = '连接信息已保存';
-    } else if (result.external && !result.external.connected) {
+    if (result.external && !result.external.connected) {
       toast(result.warning || '设置已保存，但未应用到服务端', 'error');
-      $('#settingsStatus').textContent = '保存失败';
     } else {
       toast(
         result.external ? '设置已保存并应用到 aria2' : '设置已保存',
         'success',
       );
-      $('#settingsStatus').textContent = '已保存';
     }
 
-    await loadSettings();
+    await loadSettings().catch(() => markSettingsClean());
     fetchSnapshot().catch(() => {});
+    state.settingsSaving = false;
+    if (result.external && !result.external.connected) {
+      refreshSettingsDirty({ preserveStatus: true });
+      setSettingsStatus('已保存，但未应用到服务端', 'error');
+    } else {
+      markSettingsClean();
+      setSettingsStatus('已保存', 'success');
+    }
     setTimeout(() => {
-      if ($('#settingsStatus').textContent === '已保存') {
-        $('#settingsStatus').textContent = '';
-      }
+      const status = $('#settingsStatus');
+      if (status && status.dataset.tone === 'success') setSettingsStatus('');
     }, 2600);
   } catch (error) {
-    $('#settingsStatus').textContent = '';
+    state.settingsSaving = false;
+    refreshSettingsDirty({ preserveStatus: true });
+    setSettingsStatus('保存失败，请重试', 'error');
     toast(error.message, 'error');
   } finally {
-    setButtonBusy(button, false);
+    state.settingsSaving = false;
+    if (button) button.disabled = !isSettingsDirty();
   }
 }
 
@@ -955,6 +1050,8 @@ function bindEvents() {
   });
 
   $('#settingsForm').addEventListener('submit', saveSettings);
+  $('#settingsForm').addEventListener('input', () => refreshSettingsDirty());
+  $('#settingsForm').addEventListener('change', () => refreshSettingsDirty());
   $('#purgeBtn').addEventListener('click', purgeHistory);
   $('#loadMoreBtn').addEventListener('click', () => {
     loadStopped(state.stoppedLoaded + 20).catch((error) => toast(error.message, 'error'));
@@ -983,8 +1080,9 @@ function bindEvents() {
 
   ['#settingExternalUrl', '#settingExternalSecret'].forEach((selector) => {
     $(selector).addEventListener('change', () => {
-      state.externalLoadedFor = '';
-      if (state.engineMode === 'external') probeExternal({ silent: true });
+      if (state.engineMode === 'external') {
+        setExternalStatus('连接信息已修改，点击读取服务端配置');
+      }
     });
   });
 
@@ -995,6 +1093,8 @@ function bindEvents() {
     const chip = event.target.closest('[data-root]');
     if (!chip) return;
     $('#settingDir').value = chip.dataset.root;
+    syncRootSelection();
+    refreshSettingsDirty();
   });
 
   $('#browseRoots').addEventListener('click', (event) => {
@@ -1025,6 +1125,12 @@ function bindEvents() {
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
     $$('.modal:not(.hidden)').forEach((modal) => closeModal(modal.id));
+  });
+
+  window.addEventListener('beforeunload', (event) => {
+    if (state.view !== 'settings' || !isSettingsDirty()) return;
+    event.preventDefault();
+    event.returnValue = '';
   });
 }
 
