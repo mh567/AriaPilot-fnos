@@ -268,6 +268,15 @@ async function handleApi(req, res, url, ctx) {
     return;
   }
 
+  if (method === 'POST' && pathname === '/api/external/probe') {
+    const body = await readJson(req, JSON_LIMIT);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new HttpError(400, '请求内容必须是 JSON 对象');
+    }
+    sendJson(res, 200, await ctx.probeExternal(body));
+    return;
+  }
+
   if (method === 'GET' && pathname === '/api/fs/roots') {
     sendJson(res, 200, { roots: ctx.paths.roots });
     return;

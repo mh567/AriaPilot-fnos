@@ -12,7 +12,7 @@ AriaPilot 是运行在飞牛 fnOS 上的下载管理器，自带 aria2 引擎，
 - 已完成任务历史持久化
 - 在飞牛授权目录中选择和修改下载目录
 - 并发数、每任务连接数、分片数、全局限速
-- 内置 aria2 引擎与外部 aria2 RPC 两种模式
+- 内置 aria2 引擎与外部 aria2 RPC 两种模式，可读取并写入外部服务端配置
 - x86 与 ARM64 双架构 FPK
 
 ## 下载与安装
@@ -38,8 +38,8 @@ bash scripts/build_fpk.sh --arch all
 产物：
 
 ```text
-dist/ariapilot_1.0.7_x86.fpk
-dist/ariapilot_1.0.7_arm.fpk
+dist/ariapilot_1.0.8_x86.fpk
+dist/ariapilot_1.0.8_arm.fpk
 ```
 
 构建机需要 `node`、`curl`、`tar`、`md5` 或 `md5sum`，以及 `rsvg-convert`、ImageMagick 或 macOS `qlmanage` 之一用于生成图标。`fnpack` 会在缺失时自动下载到 `.tools/`。
@@ -67,7 +67,7 @@ docs/FNOS.md    安装、配置和排障
 
 ## 版本
 
-本仓库使用独立的 `vX.Y.Z` 标签，与 macOS 版版本号无关。当前版本 `v1.0.7`。
+本仓库使用独立的 `vX.Y.Z` 标签，与 macOS 版版本号无关。当前版本 `v1.0.8`。
 
 ## 安全
 

@@ -117,8 +117,8 @@
         <form id="settingsForm" class="settings">
           <div class="card">
             <div class="card-head">
-              <h2>下载目录</h2>
-              <span class="muted">决定新任务的保存位置</span>
+              <h2 id="dirCardTitle">下载目录</h2>
+              <span class="muted" id="dirCardHint">决定新任务的保存位置</span>
             </div>
             <div class="field">
               <label for="settingDir">保存到</label>
@@ -134,7 +134,7 @@
           <div class="card">
             <div class="card-head">
               <h2>下载性能</h2>
-              <span class="muted">对内置 aria2 生效</span>
+              <span class="muted" id="perfHint">对内置 aria2 生效</span>
             </div>
             <div class="grid-2">
               <div class="field">
@@ -196,7 +196,11 @@
               <div class="field">
                 <label for="settingExternalSecret">RPC 密钥</label>
                 <input type="password" id="settingExternalSecret" autocomplete="off" placeholder="留空表示不修改">
-                <p class="hint">外部模式下不支持删除远端文件和浏览远端目录。</p>
+                <p class="hint">连接到已有 aria2 后会自动读取服务端目录和线程配置。外部模式下不支持删除远端文件和浏览远端目录。</p>
+              </div>
+              <div class="inline-actions">
+                <button class="button ghost" type="button" id="readExternalBtn">读取服务端配置</button>
+                <span class="muted" id="externalStatus">尚未连接</span>
               </div>
             </div>
           </div>

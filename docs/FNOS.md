@@ -53,8 +53,8 @@ bash scripts/build_fpk.sh --arch arm
 产物：
 
 ```text
-dist/ariapilot_1.0.7_x86.fpk
-dist/ariapilot_1.0.7_arm.fpk
+dist/ariapilot_1.0.8_x86.fpk
+dist/ariapilot_1.0.8_arm.fpk
 ```
 
 如果构建机无法联网，可以提前把 aria2 二进制放到 `vendor/aria2/linux-amd64/` 和 `vendor/aria2/linux-arm64/`，并设置 `FNOS_SKIP_FNPACK_DOWNLOAD=1` 使用内置打包器。
@@ -134,7 +134,9 @@ Node 服务（0.0.0.0:7788）
 
 内置引擎是默认模式，应用会管理 aria2 的启动、停止和配置。
 
-连接已有 aria2 模式需要填写 RPC 地址与密钥。该模式下不支持删除远端文件，也不支持浏览本机目录。RPC 密钥留空表示保持原值。
+连接已有 aria2 模式需要填写 RPC 地址与密钥。连接成功后，应用会自动读取服务端的下载目录、并发任务数、每任务连接数、分片数和全局限速，设置页会显示连接状态。保存时这些参数会写入 aria2 服务端全局配置，并提示是否保存成功。该模式下的目录是服务端路径，不受飞牛授权目录限制；RPC 密钥留空表示保持原值。
+
+该模式不支持删除远端文件，也不支持浏览本机目录。连接失败时仍可保存 RPC 地址与密钥，但目录和线程参数不会写入服务端。
 
 ## 排障
 

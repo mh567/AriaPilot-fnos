@@ -46,6 +46,7 @@ const state = {
   browse: { target: 'add', path: '', parent: null },
   pendingDelete: null,
   torrent: null,
+  externalLoadedFor: '',
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -292,10 +293,11 @@ function renderEngine(engine) {
     external: '外部 aria2',
   };
 
+  const external = engine.mode === 'external' || engine.state === 'external';
   const hasError = Boolean(engine.error);
   const level = hasError
     ? 'is-error'
-    : engine.state === 'running'
+    : external || engine.state === 'running'
       ? 'is-running'
       : engine.state === 'starting'
         ? 'is-starting'
@@ -304,16 +306,20 @@ function renderEngine(engine) {
           : '';
 
   dot.className = `dot ${level}`.trim();
-  $('#engineText').textContent = hasError
-    ? '引擎异常'
-    : states[engine.state] || '未知';
+  $('#engineText').textContent = external
+    ? hasError
+      ? '连接失败'
+      : '已连接'
+    : hasError
+      ? '引擎异常'
+      : states[engine.state] || '未知';
 
   if (hasError) {
     $('#engineMeta').textContent = engine.error;
   } else if (engine.state === 'running') {
     $('#engineMeta').textContent = `aria2 ${engine.version || ''} · 端口 ${engine.port}`;
   } else if (engine.state === 'external') {
-    $('#engineMeta').textContent = '连接到已有 aria2 服务';
+    $('#engineMeta').textContent = `外部 aria2${engine.version ? ` ${engine.version}` : ''}`;
   } else {
     $('#engineMeta').textContent = '暂无';
   }
@@ -457,6 +463,9 @@ async function loadSettings() {
   setMode(state.engineMode);
   renderRoots();
   renderEngine(state.snapshot ? state.snapshot.engine || {} : {});
+  if (state.engineMode === 'external') {
+    await probeExternal({ silent: true });
+  }
 }
 
 function renderRoots() {
@@ -484,9 +493,89 @@ function setMode(mode) {
   $('#externalPanel').classList.toggle('hidden', builtin);
   $('#browseSettingDir').classList.toggle('hidden', !builtin);
   $('#settingDir').readOnly = builtin;
+  $('#settingDir').placeholder = builtin ? '/vol1/downloads' : '/remote/downloads';
+  $('#dirCardTitle').textContent = builtin ? '下载目录' : '服务端下载目录';
+  $('#dirCardHint').textContent = builtin
+    ? '决定新任务的保存位置'
+    : '目录位于 aria2 服务端';
+  $('#perfHint').textContent = builtin
+    ? '对内置 aria2 生效'
+    : '并发、线程与限速会写入 aria2 服务端';
   $('#dirHint').textContent = builtin
     ? '只能选择已授权的目录。'
-    : '外部模式的目录位于远端服务器，需要填写远端绝对路径。';
+    : '填写 aria2 服务端可访问的绝对路径，不限制为飞牛授权目录。';
+  $('#rootsList').classList.toggle('hidden', !builtin);
+}
+
+function switchMode(mode) {
+  if (state.engineMode === mode) return;
+  state.externalLoadedFor = '';
+  setMode(mode);
+  if (mode === 'external') {
+    probeExternal({ silent: true });
+  } else {
+    setExternalStatus('尚未连接');
+  }
+}
+
+function setExternalStatus(text, tone = '') {
+  const element = $('#externalStatus');
+  if (!element) return;
+  element.textContent = text;
+  element.style.color =
+    tone === 'error'
+      ? 'var(--danger)'
+      : tone === 'ok'
+        ? 'var(--success)'
+        : '';
+}
+
+function applyExternalOptions(options) {
+  if (!options) return;
+  $('#settingDir').value = options.downloadDir || '';
+  $('#settingConcurrent').value = options.maxConcurrent;
+  $('#settingConnections').value = options.connectionsPerServer;
+  $('#settingSplit').value = options.split;
+  $('#settingDownloadLimit').value = options.downloadLimit;
+  $('#settingUploadLimit').value = options.uploadLimit;
+  if (state.settings) Object.assign(state.settings, options);
+}
+
+async function probeExternal({ silent = true } = {}) {
+  const url = $('#settingExternalUrl').value.trim();
+  if (!url) {
+    state.externalLoadedFor = '';
+    setExternalStatus('请先填写 RPC 地址');
+    return null;
+  }
+
+  setExternalStatus('正在读取服务端配置…');
+  const saveButton = $('#saveSettingsBtn');
+  const saveWasDisabled = Boolean(saveButton && saveButton.disabled);
+  if (saveButton) saveButton.disabled = true;
+  try {
+    const payload = { externalRpcUrl: url };
+    const secret = $('#settingExternalSecret').value;
+    if (secret) payload.externalRpcSecret = secret;
+    const data = await api('/api/external/probe', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    applyExternalOptions(data.options);
+    state.externalLoadedFor = url;
+    setExternalStatus(
+      `已连接${data.version ? ` aria2 ${data.version}` : ''}，已读取服务端配置`,
+      'ok',
+    );
+    return data;
+  } catch (error) {
+    state.externalLoadedFor = '';
+    setExternalStatus(`连接失败：${error.message}`, 'error');
+    if (!silent) toast(error.message, 'error');
+    return null;
+  } finally {
+    if (saveButton) saveButton.disabled = saveWasDisabled;
+  }
 }
 
 async function saveSettings(event) {
@@ -496,22 +585,36 @@ async function saveSettings(event) {
   $('#settingsStatus').textContent = '保存中…';
 
   try {
+    let skipExternalApply = false;
+    if (state.engineMode === 'external') {
+      const url = $('#settingExternalUrl').value.trim();
+      if (!url) throw new Error('请填写 RPC 地址');
+      if (state.externalLoadedFor !== url) {
+        const probed = await probeExternal({ silent: true });
+        skipExternalApply = !probed;
+      }
+    }
+
     const payload = {
       mode: state.engineMode,
-      downloadDir: $('#settingDir').value.trim(),
-      maxConcurrent: Number($('#settingConcurrent').value),
-      connectionsPerServer: Number($('#settingConnections').value),
-      split: Number($('#settingSplit').value),
-      downloadLimit: $('#settingDownloadLimit').value.trim(),
-      uploadLimit: $('#settingUploadLimit').value.trim(),
       rpcPort: Number($('#settingPort').value),
       deleteFilesByDefault: $('#settingDeleteFiles').checked,
     };
+
+    if (!skipExternalApply) {
+      payload.downloadDir = $('#settingDir').value.trim();
+      payload.maxConcurrent = Number($('#settingConcurrent').value);
+      payload.connectionsPerServer = Number($('#settingConnections').value);
+      payload.split = Number($('#settingSplit').value);
+      payload.downloadLimit = $('#settingDownloadLimit').value.trim();
+      payload.uploadLimit = $('#settingUploadLimit').value.trim();
+    }
 
     if (state.engineMode === 'external') {
       payload.externalRpcUrl = $('#settingExternalUrl').value.trim();
       const secret = $('#settingExternalSecret').value;
       if (secret) payload.externalRpcSecret = secret;
+      if (skipExternalApply) payload.applyToServer = false;
     }
 
     const result = await api('/api/settings', {
@@ -525,8 +628,19 @@ async function saveSettings(event) {
       renderEngine(result.engine);
     }
     if (result.warning) toast(result.warning, 'error');
-    toast('设置已保存', 'success');
-    $('#settingsStatus').textContent = '已保存';
+    if (result.external && result.external.skipped) {
+      toast('连接信息已保存，未读取到服务端配置，参数未写入服务端', 'error');
+      $('#settingsStatus').textContent = '连接信息已保存';
+    } else if (result.external && !result.external.connected) {
+      toast(result.warning || '设置已保存，但未应用到服务端', 'error');
+      $('#settingsStatus').textContent = '保存失败';
+    } else {
+      toast(
+        result.external ? '设置已保存并应用到 aria2' : '设置已保存',
+        'success',
+      );
+      $('#settingsStatus').textContent = '已保存';
+    }
 
     await loadSettings();
     fetchSnapshot().catch(() => {});
@@ -860,7 +974,18 @@ function bindEvents() {
   $('#browseSelect').addEventListener('click', selectBrowsePath);
 
   $$('.segment').forEach((button) => {
-    button.addEventListener('click', () => setMode(button.dataset.mode));
+    button.addEventListener('click', () => switchMode(button.dataset.mode));
+  });
+
+  $('#readExternalBtn').addEventListener('click', () => {
+    probeExternal({ silent: false });
+  });
+
+  ['#settingExternalUrl', '#settingExternalSecret'].forEach((selector) => {
+    $(selector).addEventListener('change', () => {
+      state.externalLoadedFor = '';
+      if (state.engineMode === 'external') probeExternal({ silent: true });
+    });
   });
 
   $('#restartEngineBtn').addEventListener('click', restartEngine);

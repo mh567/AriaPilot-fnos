@@ -37,7 +37,7 @@ class SnapshotService {
     }
 
     const settings = this.getSettings();
-    const engine = this.getEngineStatus();
+    let engine = this.getEngineStatus();
     const warnings = typeof this.getWarnings === 'function' ? this.getWarnings() : [];
     const canDeleteFiles = settings.mode === 'builtin';
 
@@ -53,6 +53,10 @@ class SnapshotService {
       const normalizedGlobal = normalizeGlobalStat(global);
       this.history.record(stopped);
       const merged = this.history.merge(stopped);
+
+      if (settings.mode === 'external') {
+        engine = { ...engine, connected: true, error: '' };
+      }
 
       const value = {
         engine,
@@ -77,7 +81,11 @@ class SnapshotService {
       const message =
         engine.state === 'starting' ? '' : engine.error || error.message;
       const value = {
-        engine: { ...engine, error: message },
+        engine: {
+          ...engine,
+          error: message,
+          connected: settings.mode === 'external' ? false : engine.connected,
+        },
         warnings,
         global: { ...EMPTY_GLOBAL },
         active: [],

@@ -7,12 +7,14 @@ const path = require('node:path');
 
 const { Aria2Client } = require('./aria2');
 const { Engine } = require('./engine');
+const { globalOptionPayload, mapExternalOptions } = require('./external');
 const { HistoryStore } = require('./history');
 const { AuthorizedPaths, isPathInside, splitPaths } = require('./paths');
 const { createRouter } = require('./router');
 const { SnapshotService } = require('./snapshot');
 const {
   DEFAULT_SETTINGS,
+  SettingsError,
   SettingsStore,
   makeSecret,
   normalizeSettings,
@@ -21,7 +23,7 @@ const {
   validateSettings,
 } = require('./settings');
 
-const APP_VERSION = '1.0.7';
+const APP_VERSION = '1.0.8';
 
 const appDest =
   process.env.AP_DEST ||
@@ -116,6 +118,58 @@ function getClient() {
   });
 }
 
+function externalClient(input = {}) {
+  const url = String(input.externalRpcUrl || '').trim();
+  if (!/^https?:\/\//i.test(url)) {
+    throw new SettingsError('外部 aria2 地址必须以 http:// 或 https:// 开头');
+  }
+  const provided =
+    typeof input.externalRpcSecret === 'string' ? input.externalRpcSecret : '';
+  const secret =
+    provided || (url === settings.externalRpcUrl ? settings.externalRpcSecret : '');
+  return new Aria2Client({ url, secret });
+}
+
+async function probeExternal(input = {}) {
+  const client = externalClient(input);
+  const [version, globalOptions] = await Promise.all([
+    client.getVersion(),
+    client.getGlobalOption(),
+  ]);
+
+  let taskOptions = {};
+  try {
+    const active = await client.tellActive(['gid']);
+    if (active && active[0]) {
+      taskOptions = await client.tellStatus(active[0].gid, [
+        'split',
+        'max-connection-per-server',
+      ]);
+    }
+  } catch {
+    /* running tasks are optional */
+  }
+
+  return {
+    version: (version && version.version) || '',
+    options: mapExternalOptions(globalOptions, taskOptions, settings),
+  };
+}
+
+async function applyExternalSettings(next) {
+  const client = new Aria2Client({
+    url: next.externalRpcUrl,
+    secret: next.externalRpcSecret,
+  });
+  const version = await client.getVersion();
+  await client.changeGlobalOption(globalOptionPayload(next));
+  return {
+    connected: true,
+    applied: true,
+    version: (version && version.version) || '',
+  };
+}
+
 function getWarnings() {
   const warnings = [];
   if (settings.mode !== 'builtin') return warnings;
@@ -183,11 +237,30 @@ async function saveSettings(patch) {
     warning = applied.warning || '';
   }
 
+  let external = null;
+  if (next.mode === 'external') {
+    if (patch.applyToServer === false) {
+      external = { connected: false, applied: false, skipped: true };
+    } else {
+      try {
+        external = await applyExternalSettings(next);
+      } catch (error) {
+        external = {
+          connected: false,
+          applied: false,
+          error: error.message,
+        };
+        warning = `设置已保存，但连接或应用到 aria2 失败：${error.message}`;
+      }
+    }
+  }
+
   return {
     settings: publicSettings(settings),
     engine: engine.status(),
     warnings: getWarnings(),
     warning,
+    external,
   };
 }
 
@@ -215,6 +288,7 @@ const ctx = {
   getWarnings,
   getSnapshot: (options) => snapshots.build(options),
   invalidateSnapshot: () => snapshots.invalidate(),
+  probeExternal,
   saveSettings,
   restartEngine,
   engineLogTail: (lines) => engine.logTail(lines),
